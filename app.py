@@ -1,100 +1,118 @@
-from flask import Flask, jsonify, request, render_template
-from flask_cors import CORS
-import mysql.connector
-from mysql.connector import Error
+import sqlite3
+from flask import Flask, request, session, jsonify
 
 app = Flask(__name__)
-CORS(app)
+app.secret_key = 'secret-key'
 
-db_config = {
-    'host': '10.0.2.3',
-    'user': 'hancom',
-    'password': '1234',
-    'database': 'shop_db',
-    'port': '3306',
-    'charset': 'utf8mb4'
-}
+def init_db():
+    conn = sqlite3.connect('database.db')
+    cur = conn.cursor()
 
-def get_db_connection():
-    return mysql.connector.connect(**db_config)
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL
+    )
+    ''')
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS contacts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        email TEXT
+    )
+    ''')
 
-@app.route('/api/products', methods=['GET'])
-def get_products():
-    conn = None
-    cursor = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM products ORDER BY id DESC")
-        products = cursor.fetchall()
-        return jsonify(products), 200
-    except Error as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if cursor: cursor.close()
-        if conn: conn.close()
+    # 테스트 계정
+    cur.execute('''
+    INSERT OR IGNORE INTO users(username, password)
+    VALUES ('admin', '1234')
+    ''')
 
-@app.route('/api/products', methods=['POST'])
-def create_product():
-    data = request.get_json()
-    if not data or 'name' not in data or 'price' not in data:
-        return jsonify({"message": "필수 입력 값이 누락되었습니다."}), 400
+    conn.commit()
+    conn.close()
+
     
-    conn = None
-    cursor = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "INSERT INTO products (name, price, description) VALUES (%s, %s, %s)"
-        values = (data['name'], data['price'], data.get('description', ''))
-        cursor.execute(sql, values)
-        conn.commit()
-        return jsonify({"message": "상품이 등록되었습니다.", "id": cursor.lastrowid}), 201
-    except Error as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if cursor: cursor.close()
-        if conn: conn.close()
 
-@app.route('/api/products/<int:product_id>', methods=['PUT'])
-def update_product(product_id):
+@app.route('/api/login', methods=['POST'])
+def login():
     data = request.get_json()
-    conn = None
-    cursor = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "UPDATE products SET name = %s, price = %s, description = %s WHERE id = %s"
-        values = (data['name'], data['price'], data.get('description', ''), product_id)
-        cursor.execute(sql, values)
-        conn.commit()
-        return jsonify({"message": "상품 정보가 수정되었습니다."}), 200
-    except Error as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if cursor: cursor.close()
-        if conn: conn.close()
 
-@app.route('/api/products/<int:product_id>', methods=['DELETE'])
-def delete_product(product_id):
-    conn = None
-    cursor = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "DELETE FROM products WHERE id = %s"
-        cursor.execute(sql, (product_id,))
-        conn.commit()
-        return jsonify({"message": "상품이 삭제되었습니다."}), 200
-    except Error as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if cursor: cursor.close()
-        if conn: conn.close()
+    username = data.get('username')
+    password = data.get('password')
 
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=8000)
+    conn = sqlite3.connect('database.db')
+    cur = conn.cursor()
+
+    cur.execute('''
+    SELECT * FROM users
+    WHERE username=? AND password=?
+    ''', (username, password))
+
+    user = cur.fetchone()
+    conn.close()
+
+    if user:
+        session['user'] = username
+        return jsonify({'success': True})
+
+    return jsonify({'success': False}), 401
+
+
+@app.route('/api/contacts', methods=['GET'])
+def get_contacts():
+
+    keyword = request.args.get('keyword', '')
+
+    conn = sqlite3.connect('database.db')
+    cur = conn.cursor()
+
+    cur.execute('''
+    SELECT * FROM contacts
+    WHERE name LIKE ?
+    ''', (f'%{keyword}%',))
+
+    rows = cur.fetchall()
+    conn.close()
+
+    contacts = []
+
+    for row in rows:
+        contacts.append({
+            'id': row[0],
+            'name': row[1],
+            'phone': row[2],
+            'email': row[3]
+        })
+
+    return jsonify(contacts)
+
+@app.route('/api/contacts', methods=['POST'])
+def add_contact():
+
+    data = request.get_json()
+
+    name = data.get('name')
+    phone = data.get('phone')
+    email = data.get('email')
+
+    conn = sqlite3.connect('database.db')
+    cur = conn.cursor()
+
+    cur.execute('''
+    INSERT INTO contacts(name, phone, email)
+    VALUES (?, ?, ?)
+    ''', (name, phone, email))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True})
+
+
+
+if __name__=="__main__":
+    init_db()
+    app.run(debug=True)
