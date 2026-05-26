@@ -23,8 +23,8 @@ Flask 기반의 **연락처 관리 시스템**으로, 로그인 인증과 주소
 
 | 역할 | 담당자 | 브랜치 | 담당 파일 |
 |------|--------|--------|----------|
-| **백엔드 & DB** | 팀원 A | `feature/auth` | `app.py` |
-| **프론트엔드 & UI** | 팀원 B | `feature/search` | `templates/`, `static/` |
+| **백엔드 & DB** | 김호림 | `feature/auth` | `app.py` |
+| **프론트엔드 & UI** | 김유성 | `feature/search` | `templates/`, `static/` |
 
 ---
 
