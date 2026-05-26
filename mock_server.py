@@ -163,6 +163,33 @@ def api_add_contact():
     }), 201
 
 
+@app.route('/api/contacts/<int:contact_id>', methods=['DELETE'])
+def api_delete_contact(contact_id):
+    """연락처 삭제"""
+    global contacts_db
+    
+    print(f"\n🗑️ 연락처 삭제: ID {contact_id}")
+    
+    # 연락처 찾기
+    contact = next((c for c in contacts_db if c['id'] == contact_id), None)
+    
+    if not contact:
+        print(f"   ❌ 찾을 수 없음: ID {contact_id}")
+        return jsonify({
+            'success': False,
+            'message': '해당 연락처를 찾을 수 없습니다.'
+        }), 404
+    
+    # 삭제
+    contacts_db = [c for c in contacts_db if c['id'] != contact_id]
+    print(f"   ✅ 삭제 성공: {contact['name']} (ID: {contact_id})")
+    
+    return jsonify({
+        'success': True,
+        'message': '연락처가 삭제되었습니다.'
+    }), 200
+
+
 # ===================== 정적 파일 =====================
 
 @app.route('/static/<path:filename>')

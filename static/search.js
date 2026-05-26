@@ -1,6 +1,12 @@
 // 페이지 로드 시 전체 연락처 목록 조회
 document.addEventListener('DOMContentLoaded', () => {
     loadContacts();
+    
+    // 전화번호 입력 필드에 자동 포매팅 추가
+    const phoneInput = document.getElementById('contactPhone');
+    phoneInput.addEventListener('input', (e) => {
+        e.target.value = formatPhoneNumber(e.target.value);
+    });
 });
 
 // 전체 연락처 조회 함수
@@ -20,7 +26,7 @@ async function loadContacts(query = '') {
             const contacts = data.contacts || [];
             
             if (contacts.length === 0) {
-                contactsBody.innerHTML = '<tr class="no-data"><td colspan="3">연락처가 없습니다.</td></tr>';
+                contactsBody.innerHTML = '<tr class="no-data"><td colspan="4">연락처가 없습니다.</td></tr>';
             } else {
                 // 테이블 동적 생성
                 contactsBody.innerHTML = contacts.map(contact => `
@@ -28,16 +34,21 @@ async function loadContacts(query = '') {
                         <td>${escapeHtml(contact.name)}</td>
                         <td>${escapeHtml(contact.phone)}</td>
                         <td>${escapeHtml(contact.email)}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn-delete" onclick="deleteContact(${contact.id})">삭제</button>
+                            </div>
+                        </td>
                     </tr>
                 `).join('');
             }
         } else {
-            contactsBody.innerHTML = '<tr class="no-data"><td colspan="3">연락처를 불러올 수 없습니다.</td></tr>';
+            contactsBody.innerHTML = '<tr class="no-data"><td colspan="4">연락처를 불러올 수 없습니다.</td></tr>';
             showMessage('error', '연락처 조회에 실패했습니다.');
         }
     } catch (error) {
         console.error('Error:', error);
-        contactsBody.innerHTML = '<tr class="no-data"><td colspan="3">오류가 발생했습니다.</td></tr>';
+        contactsBody.innerHTML = '<tr class="no-data"><td colspan="4">오류가 발생했습니다.</td></tr>';
         showMessage('error', `오류: ${error.message}`);
     }
 }
@@ -148,4 +159,45 @@ function escapeHtml(text) {
         "'": '&#039;'
     };
     return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+// 전화번호 포매팅 함수 (예: 01012345678 → 010-1234-5678)
+function formatPhoneNumber(value) {
+    // 숫자만 추출
+    const numbers = value.replace(/\D/g, '');
+    
+    // 10자 또는 11자일 때만 포매팅
+    if (numbers.length === 10) {
+        return numbers.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+    } else if (numbers.length === 11) {
+        return numbers.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+    }
+    
+    // 포매팅할 수 없으면 그대로 반환
+    return value.substring(0, 13); // 최대 길이 제한
+}
+
+// 연락처 삭제 함수
+async function deleteContact(contactId) {
+    if (!confirm('정말 이 연락처를 삭제하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/contacts/${contactId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showMessage('success', '연락처가 삭제되었습니다!');
+            loadContacts(); // 목록 새로고침
+        } else {
+            showMessage('error', data.message || '연락처 삭제에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showMessage('error', `오류: ${error.message}`);
+    }
 }
